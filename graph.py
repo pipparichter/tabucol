@@ -22,6 +22,21 @@ def flatten(lol):
             flat += flatten(lst)
     return flat
 
+def remove_duplicate_edges(edgelist):
+    '''
+    A function which removes repeat edges from a list of edges. For example, if
+    both (u, v) and (v, u) are present in the list, one is removed. 
+
+    Params
+    ------
+    edgelist : list
+        A list of 2-tuples representing a collection of edges. 
+    '''
+    for (u, v) in edgelist:
+        if (v, u) in edgelist:
+            edgelist.remove((u, v))
+    return edgelist
+
 class Graph:
 
     def __init__(self, E, V=None):
@@ -36,7 +51,7 @@ class Graph:
         self.vertex_count = len(self.V)
         self.edge_count = len(E)
 
-    def __get_neighbors(self, v):
+    def get_neighbors(self, v):
         '''
         Returns an array of vertices connected to v by an edge. 
         '''
@@ -51,24 +66,88 @@ class Graph:
             neighbors.remove(v)
         return neighbors
 
+   
+    def get_conflicting_edges(self, coloring):
+        '''
+        Returns an array of the edges whose two vertices are colored the same way,
+        given the input coloring. The coloring is a dictionary, which maps each
+        vertex to a color. 
+        
+        Params
+        ------
+        coloring : dict
+            A dictionary mapping each vertex (a positive integer) to a color
+            (another positive integer). 
+        '''
+        # Make sure there is a color assigned to each vertex.
+        assert set(self.V) == set(coloring.keys())
+
+        conflicts = np.array([])
+        for e in self.E:
+            u, v = e[0], e[1]
+            # If this is true, then there is a conflict. 
+            if coloring[u] == coloring[v]:
+                conflicts = np.append(conflicts, e)
+        return conflicts
+
+    def get_conflicting_vertices(self, coloring):
+        '''
+        Returns an array of the vertices participating in a coloring conflict. 
+        
+        Params
+        ------
+        coloring : dict
+            A dictionary mapping each vertex (a positive integer) to a color
+            (another positive integer). 
+        '''
+        return np.ravel(np.unique(self.get_conflicting_edges(coloring)))
+
+
+    def is_valid_coloring(self, coloring):
+        '''
+        Takes a dictionary as input, which maps each vertex in the graph to a
+        color. Each color and vertex is assumed to be represented by an integer
+        label. It returns a Boolean value, indicating whether or not the
+        coloring is valid.
+
+        Params
+        ------
+        coloring : dict
+            A dictionary mapping each vertex (a positive integer) to a color
+            (another positive integer). 
+        '''
+        # If the number of conflicting edges is zero, the coloring is valid.
+        if len(self.get_conflicting_edges(coloring)) == 0:
+            return True
+        else:
+            return False
+
     def coloring_to_sat(self, k):
         '''
         Converts a coloring problem into a K-Satisfiability problem. K-SAT formula
         should be in Conjunctive Normal form, a series of OR clauses joined by ands. 
+        
+        SOURCE : https://www.cs.utexas.edu/users/vl/teaching/lbai/coloring.pdf 
         '''
         # Generate a list of vertex-color pairs, and map eacch to an integer. 
         # This is necessary, as minisolver uses integers.
         vc = flatten([(v, c) for v in self.V for c in range(k)])
         mapping = {pair:var for var, pair in enumerate(vc)}
         
-        clauses = [[var for var in mapping.values()]]
+        clauses = [[var] for var in mapping.values()]
         
         # For each edge (u, v), add a clause (not v or not u) for each color. 
         for u, v in self.E:
             for c in range(k):
                 # The negative indicates a "not."
                 clauses += [[-mapping[(u, c)], -mapping[(v, c)]]]
-
+        # Make sure a vertex is not colored the same way. 
+        for v in self.V:
+            for i in range(k):
+                for j in range(k):
+                    if i != j:
+                        clauses += [[-mapping[(v, i)], -mapping[(v, j)]]]
+        print(clauses)
         return mapping, clauses
 
 
@@ -88,6 +167,15 @@ class Graph:
             S.add_clause(clause)
 
         return S.solve()
+
+   
+def plot_graph(G, coloring='black', cmap='tab20'):
+    cmap = plt.get_cmap(cmap)
+    # Initialize the graph using the list of edges. Any non-connected vertices
+    # will be thrown out. If this is an issue, I can add things seperately. 
+    G = nx.Graph(G.edges)
+    nx.draw(G, cmap=cmap, node_color=coloring)
+    plt.show()
 
 
 #     def is_colorable(self, k):
@@ -113,42 +201,4 @@ class Graph:
 #                     coloring[v] = c
 # 
 #         return True
-    
-    def get_conflicting_edges(self, coloring):
-        '''
-        Returns an array of the edges whose two vertices are colored the same way,
-        given the input coloring. The coloring is a dictionary, which maps each
-        vertex to a color. 
-        '''
-        # Make sure there is a color assigned to each vertex.
-        assert set(self.V) == set(coloring.keys())
-
-        conflicts = np.array([])
-        for e in self.E:
-            u, v = e[0], e[1]
-            # If this is true, then there is a conflict. 
-            if coloring[u] == coloring[v]:
-                conflicts = np.append(conflicts, e)
-        return conflicts
-
-    def get_conflicting_vertices(self, coloring):
-        '''
-        Returns an array of the vertices participating in a coloring conflict. 
-        '''
-        return np.ravel(np.unique(self.get_conflicting_edges(coloring)))
-
-
-    def is_valid_coloring(self, coloring):
-        '''
-        Takes a dictionary as input, which maps each vertex in the graph to a
-        color. Each color and vertex is assumed to be represented by an integer
-        label. It returns a Boolean value, indicating whether or not the
-        coloring is valid. 
-        '''
-        # If the number of conflicting edges is zero, the coloring is valid.
-        if len(self.get_conflicting_edges(coloring)) == 0:
-            return True
-        else:
-            return False
-
-
+ 
