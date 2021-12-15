@@ -132,10 +132,13 @@ class Graph:
         # Generate a list of vertex-color pairs, and map eacch to an integer. 
         # This is necessary, as minisolver uses integers.
         vc = flatten([(v, c) for v in self.V for c in range(k)])
-        mapping = {pair:var for var, pair in enumerate(vc)}
+        # Second argument of enumerate is a starting index. 
+        mapping = {pair:var for var, pair in enumerate(vc, 1)}
         
-        clauses = [[var] for var in mapping.values()]
-        
+        clauses = []
+
+        for v in self.V:
+                clauses += [[mapping[(v, c)] for c in range(k)]]
         # For each edge (u, v), add a clause (not v or not u) for each color. 
         for u, v in self.E:
             for c in range(k):
@@ -147,7 +150,6 @@ class Graph:
                 for j in range(k):
                     if i != j:
                         clauses += [[-mapping[(v, i)], -mapping[(v, j)]]]
-        print(clauses)
         return mapping, clauses
 
 
@@ -159,7 +161,7 @@ class Graph:
         # Initialize the MiniSAT solver. 
         mapping, clauses = self.coloring_to_sat(k)
         S = minisolvers.MinisatSolver()
-
+        
         for i in range(len(mapping)):
             S.new_var() # Add a new variable. 
 

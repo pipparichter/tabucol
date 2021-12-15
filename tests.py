@@ -147,11 +147,9 @@ def generate_colorable_graphs(k, n, num=100, p=0.5):
             edges = remove_duplicate_edges([(u, v) for u in V1 for v in V2])
             # Edges are drawn with probability p. So, select (p * len(edges)). 
             E += random.sample(edges, math.ceil(p * len(edges)))
-        for u, v in E:
-            print('{'+str(u)+','+str(v)+'}', end=',')
+        # for u, v in E:
+            # print('{'+str(u)+','+str(v)+'}', end=',')
         graphs.append(Graph(E, V=V))
 
     return graphs
-
-
 

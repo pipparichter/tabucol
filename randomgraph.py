@@ -12,7 +12,7 @@ class RandomGraph(Graph):
     This class is designed to represent and generate random graphs, mimicking
     the Graph object in Mathematica. Note that this graph is not necessarily  
     '''
-    def __init__(self, n, m, k=None):
+    def __init__(self, n, m):
         '''
 
         '''
@@ -23,7 +23,7 @@ class RandomGraph(Graph):
         self.edge_count = m
         self.vertex_count = n
         # Generate a list of vertices. 
-        self.V = list(range(1, n+1))
+        self.V = list(range(n))
 
         # Select m random edges.
         possible_edges = flatten([(i, j) for i in self.V for j in self.V])
