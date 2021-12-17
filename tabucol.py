@@ -4,7 +4,7 @@ import random
 import numpy as np
 import copy
 
-import randomgraph
+from graph import Graph, flatten
 
 def get_key(s):
     '''
@@ -13,18 +13,6 @@ def get_key(s):
     '''
     sorted_s = list(map(sorted, s))
     return str(s)
-
-def flatten(lol):
-    '''
-    Recursively flattens a 1-dimensional list. 
-    '''
-    flat = []
-    for lst in lol:
-        if type(lst) != list:
-            return lol
-        else:
-            flat += flatten(lst)
-    return flat
 
 def state_to_coloring(s):
     '''
@@ -136,6 +124,22 @@ class TabuCol():
 
         self.A[s_key] = self.f(s_prime) - 1
 
+    def __get_possible_moves(self, s):
+        '''
+        Generate a list of all moves from the current state, i.e. all moves
+        which bring a conflicting vertex out of its current coloring group. 
+        '''
+        # First, get a list of all conflicting vertices.
+        coloring = state_to_coloring(s)
+        conflicting = self.G.get_conflicting_vertices(coloring)
+        
+        possible_moves = []
+        for v in conflicting:
+            colors = np.delete(np.arange(self.k), coloring[v])
+            possible_moves += [(int(v), int(c)) for c in colors]
+        return possible_moves
+
+
     def __get_moves(self, s, A_on, T_on):
         '''
         Gets a list of valid moves, given the features which are turned on. 
@@ -154,33 +158,32 @@ class TabuCol():
         s_key = get_key(s)
         z = self.f(s)
 
-        # First, get a list of all conflicting vertices.
-        coloring = state_to_coloring(s)
-        conflicting = self.G.get_conflicting_vertices(coloring)
+        possible_moves = self.__get_possible_moves(s)
+        random.shuffle(possible_moves)
         
         moves = []
-        # Continue until the desired number of moves has been generated.
-        while len(moves) < self.rep:
-            # Select a random conflicting vertex.
-            v = random.choice(conflicting)
-            # Select a new coloring group. 
-            j = np.random.choice(np.delete(np.arange(self.k), coloring[v]))
-            # Apply the corresponding move. 
-            s_prime = apply_move(s, (v, j))
+        for move in possible_moves:
+
+            if len(moves) == self.rep:
+                break
             
-            if ((v, j) not in self.T) and T_on:
-                moves.append((v, j))
-            # Every time a state s_prime is generated which meets this
-            # condition, update the value of the aspiration function. 
-            
-            elif (self.f(s_prime) <= self.A.get(s_key, z - 1)) and A_on:
-                self.update_A(s, s_prime)
-                self.T.remove((v, j)) # Drop tabu status of the move. 
-                moves.append((v, j))
-            
-            # Just in case both features are turned off. 
+            if T_on and A_on: # If the Tabu list is being used. 
+                s_prime = apply_move(s, move)
+                if move not in self.T:
+                    moves.append(move)
+                # Every time a state s_prime is generated which meets this
+                # condition, update the value of the aspiration function. 
+                elif (self.f(s_prime) <= self.A.get(s_key, z - 1)):
+                    self.update_A(s, s_prime)
+                    moves.append(move)
+                    self.T.remove(move) # Drop tabu status of the move. 
+           
+            elif T_on and (not A_on):
+                if move not in self.T:
+                    moves.append(move)
+
             elif (not A_on) and (not T_on):
-                moves.append((v, j))
+                moves.append(move)
         
         return moves
    
@@ -227,6 +230,11 @@ class TabuCol():
             print(f'{iters} TabuCol iterations completed.', end='\r')
             # Get a list of self.rep possible moves. 
             moves = self.__get_moves(s, *switches)
+            if len(moves) == 0:
+                # If no moves could be generated, the algorithm is stuck. 
+                print('FAILURE: TabuCol was unable to generate any new moves.')
+                return np.inf    
+
             g = lambda move : self.f(apply_move(s, move)) 
 
             if select_best_move_on:
@@ -235,20 +243,21 @@ class TabuCol():
             else: 
                 # Select a random move from the list of possible moves. 
                 move = random.choice(moves)
-            s = apply_move(s, best_move)
+            s = apply_move(s, move)
 
             # Update the Tabu list by adding the most recent move, and removing
             # the last move. 
             if T_on:
-                self.T = [best_move] + self.T[:-1]
+                self.T = [move] + self.T[:-1]
             
             iters += 1
         
         if iters >= maxiters:
             print(f'FAILURE: TabuCol was unable to find a solution within {maxiters} iterations.')
+            return np.inf
         else:
             print(f'SUCCESS: TabuCol found a solution in {iters} iterations.')
-        return s
+            return iters
              
 
 

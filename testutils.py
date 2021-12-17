@@ -3,43 +3,13 @@
 import random
 import math
 import itertools
+import numpy as np
+import pandas as pd
 
 from tabucol import TabuCol
 from randomgraph import RandomGraph
 from graph import Graph, flatten, remove_duplicate_edges
 
-# TODO Things to test
-# RandomGraph correctly generates random graphs 
-# The is_colorable function is working correctly
-# The is_valid_coloring function is working correctly
-#   (write the visualizer for this)
-# TabuCol is spitting out valid colorings, and failing to find valid colorings
-# when none exist. 
-
-# What are some edge cases?
-# Graphs of size 1
-# Big graphs (maybe size 100? 500?)
-# Graphs with no edges
-# Fully-connected graphs. 
-
-
-# First, test RandomGraph. 
-
-# Make sure RandomGraph is actually generating random graphs.
-def test_randomgraph_is_random():
-    n, m = 50, 75
-    fail = False
-    for i in range(100):
-        G1 = RandomGraph(n, m)
-        G2 = RandomGraph(n, m)
-
-        shared = []
-        for (u, v) in G1.E:
-            if (u, v) in G2.E or (v, u) in G2.E:
-                shared.append((u, v))
-        if len(shared) == m:
-           return False 
-    return True
 
 def generate_uncolorable_graphs(k, n, m, num=100):
     '''
@@ -104,8 +74,34 @@ def random_split(lst, k):
         l1, l2 = lst[:idx], lst[idx:]
         return [l1] + random_split(l2, k - 1)
         
-# Tested this in mathematica; seems to be working. 
-def generate_colorable_graphs(k, n, num=100, p=0.5):
+
+def generate_colorable_graphs(k, n, m, num=100):
+    '''
+    Use the method used in the Mathematica notebooks to generate random graphs. 
+    
+    Params
+    ------
+    n : int
+        Positive integer indicating the number of vertices in the graphs. 
+    m : int
+        Positive integer indicating the number of edges in the graphs. 
+    k : int
+        Positive integer indicating the number of available colors 
+    num : int
+        Positive integer indicating the number of graphs to generate. Default is
+        100 graphs. 
+    '''
+    graphs = []
+    while len(graphs) < num:
+        g = RandomGraph(n, m)
+        if g.is_colorable(k):
+            print(f'{len(graphs)} out of {num} graphs generated.', end='\r')
+            graphs.append(g)
+
+    return graphs
+
+
+def generate_colorable_graphs_petford_and_welsh(k, n, num=100, p=0.5):
     '''
     Uses the method described in Petford and Welsh to generate K-colorable
     graphs. 
@@ -147,9 +143,68 @@ def generate_colorable_graphs(k, n, num=100, p=0.5):
             edges = remove_duplicate_edges([(u, v) for u in V1 for v in V2])
             # Edges are drawn with probability p. So, select (p * len(edges)). 
             E += random.sample(edges, math.ceil(p * len(edges)))
-        # for u, v in E:
-            # print('{'+str(u)+','+str(v)+'}', end=',')
         graphs.append(Graph(E, V=V))
 
     return graphs
+
+
+def T_A_effect_comparison(k, graphs, T_size=10):
+    '''
+    Runs a series of trials to determine the effects of the Tabu list and
+    Aspiration function on the performance of TabuCol. 
+    '''
+    # control, no T, no A, neither
+    cats = ['control', 'no T', 'no A', 'no T or A', 'control']
+    data = [[0], [0], [0], [0]]
+    failures = [0, 0, 0, 0]
+    mods = [{'T_on':True, 'A_on':True}, {'T_on':False, 'A_on':True},
+            {'T_on':True, 'A_on':False}, {'T_on':False, 'A_on':False}]
+    
+    graphs = generate_colorable_graphs(k, n, int(ratio * n), num=num)
+    
+    for G in graphs:
+        tc = TabuCol(G, k)
+        for cat, mod in enumerate(mods):
+            x = tc.run(T_size=T_size, **mod)
+            if x == np.inf:
+                failures[cat] += 1
+            else:
+                data[cat].append(x)
+        i += 1 # Only increment if a colorable graph is produced. 
+    
+    df = pd.DataFrame(columns=['mod', 'iters'])
+    for cat in cats:
+        for x in data[cats.index(cat)]:
+            df = df.append({'mod':cat, 'iters':x}, ignore_index=True)
+
+    return (df, failures)
+
+
+def optimize_T_size(k, graphs):
+    '''
+    Run a series of trials to determine the optimal size of the tabu list. 
+    '''
+    tabucols = [TabuCol(G, k) for G in graphs]
+    
+    sizes = list(range(1, n, 2))
+    data = [[] for i in range(len(sizes))]
+    failures = [0 for i in range(len(sizes))]
+   
+    for i, size in enumerate(sizes):
+        for tc in tabucols:
+            x = tc.run(T_size=size)
+            if x < np.inf:
+                data[i].append(x)
+            else:
+                failures[i] += 1
+
+    df = pd.DataFrame(columns=['size', 'iters'])
+    for size in sizes:
+        for x in data[sizes.index(size)]:
+            df = df.append({'size':size, 'iters':x}, ignore_index=True)
+
+    return (df, failures)
+
+
+
 
