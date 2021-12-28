@@ -154,23 +154,21 @@ def T_A_effect_comparison(k, graphs, T_size=10):
     Aspiration function on the performance of TabuCol. 
     '''
     # control, no T, no A, neither
-    cats = ['control', 'no T', 'no A', 'no T or A', 'control']
-    data = [[0], [0], [0], [0]]
-    failures = [0, 0, 0, 0]
+    cats = ['control', 'no T', 'no A', 'no T or A']
+    data = [[0] for i in range(len(cats))]
+    failures = {cat:0 for cat in cats}
+
     mods = [{'T_on':True, 'A_on':True}, {'T_on':False, 'A_on':True},
             {'T_on':True, 'A_on':False}, {'T_on':False, 'A_on':False}]
     
-    graphs = generate_colorable_graphs(k, n, int(ratio * n), num=num)
-    
     for G in graphs:
         tc = TabuCol(G, k)
-        for cat, mod in enumerate(mods):
-            x = tc.run(T_size=T_size, **mod)
-            if x == np.inf:
-                failures[cat] += 1
+        for idx, cat in enumerate(cats):
+            x = tc.run(T_size=T_size, **mods[idx])
+            if x >= 0:
+                data[idx].append(x)
             else:
-                data[cat].append(x)
-        i += 1 # Only increment if a colorable graph is produced. 
+                failures[cat] += 1
     
     df = pd.DataFrame(columns=['mod', 'iters'])
     for cat in cats:
@@ -184,19 +182,20 @@ def optimize_T_size(k, graphs):
     '''
     Run a series of trials to determine the optimal size of the tabu list. 
     '''
+    n = graphs[0].vertex_count
     tabucols = [TabuCol(G, k) for G in graphs]
     
-    sizes = list(range(1, n, 2))
+    sizes = list(range(5, n * k, 5))
     data = [[] for i in range(len(sizes))]
-    failures = [0 for i in range(len(sizes))]
+    failures = {size:0 for size in sizes}
    
     for i, size in enumerate(sizes):
         for tc in tabucols:
             x = tc.run(T_size=size)
-            if x < np.inf:
+            if x >= 0:
                 data[i].append(x)
             else:
-                failures[i] += 1
+                failures[size] += 1
 
     df = pd.DataFrame(columns=['size', 'iters'])
     for size in sizes:
@@ -206,5 +205,47 @@ def optimize_T_size(k, graphs):
     return (df, failures)
 
 
+def what_causes_failures(k, graphs):
+    '''
+    Applies a certain modification to the TabuCol system: control (both the tabu
+    list and the aspiration function are used), no tabu-list, no aspiration
+    function, or neither. It then parses what causes failures, when a failure
+    occurs (either maximum number of iterations is exceeded, or the algorithm
+    gets stuck).
 
+    Returns a DataFrame with the relevant information. 
 
+    Params
+    ------
+    k : int
+        K value, the number of colors to use in the coloring problem. 
+    graphs: list
+        A list of graph.Graph objects to which the TabuCol algorithm will be
+        applied. 
+    cat : str
+        One of control, no T, no A, or no T or A. Refers to the modification
+        which will be made to the TabuCol algorithm. 
+    '''
+    tabucols = [TabuCol(graph, k) for graph in graphs]
+    cats = ['control', 'no T', 'no A', 'no T or A']
+    results = ['maxiters', 'stuck', 'success']
+    # Setting up the DataFrame.
+    data = pd.DataFrame({'category':flatten([[cat]*len(results) for cat in cats]), 
+        'result':results*len(cats), 
+        'count':[0]*len(cats)*len(results)})
+
+    mods = [{'T_on':True, 'A_on':True}, {'T_on':False, 'A_on':True},
+            {'T_on':True, 'A_on':False}, {'T_on':False, 'A_on':False}]
+    
+    for cat, mod in zip(cats, mods):
+        for tc in tabucols:
+            result = tc.run(**mod)
+            
+            if result == -1:
+                data.loc[((data['category'] == cat) & (data['result'] == 'stuck')), 'count'] += 1
+            elif result == -2:
+                data.loc[((data['category'] == cat) & (data['result'] == 'maxiters')), 'count'] += 1
+            else:
+                data.loc[((data['category'] == cat) & (data['result'] == 'success')), 'count'] += 1
+    
+    return (cats, data)

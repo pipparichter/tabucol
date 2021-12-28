@@ -81,9 +81,9 @@ class TabuCol():
             list at any given time. 
         '''
         if not size:
-            size = int(self.G.vertex_count * 0.3)
+            size = 10 # Default size
         elif size > self.G.vertex_count * self.k:
-            msg = 'T_size must be less than the number of vertices.'
+            msg = 'T_size must be less than the number of possible moves.'
             raise ValueError(msg)
         elif size < 1:
             msg = 'T_size must be a positive integer.'
@@ -195,7 +195,10 @@ class TabuCol():
             T_on=True,
             select_best_move_on=True):
         '''
-        Run the TabuCol algorithm on self.G for self.k colors.
+        Run the TabuCol algorithm on self.G for self.k colors. Returns -1 if the
+        algorithm gets stuck (no new moves can be generated), -2 if the maximum
+        number of iterations is reached, and the number of iterations if the
+        algorithm is successful. 
 
         Params
         ------
@@ -233,7 +236,7 @@ class TabuCol():
             if len(moves) == 0:
                 # If no moves could be generated, the algorithm is stuck. 
                 print('FAILURE: TabuCol was unable to generate any new moves.')
-                return np.inf    
+                return -1    
 
             g = lambda move : self.f(apply_move(s, move)) 
 
@@ -254,7 +257,7 @@ class TabuCol():
         
         if iters >= maxiters:
             print(f'FAILURE: TabuCol was unable to find a solution within {maxiters} iterations.')
-            return np.inf
+            return -2
         else:
             print(f'SUCCESS: TabuCol found a solution in {iters} iterations.')
             return iters
