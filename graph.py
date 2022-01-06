@@ -50,6 +50,16 @@ class Graph:
         self.E = E
         self.vertex_count = len(self.V)
         self.edge_count = len(E)
+    
+    def get_graph_stats(self):
+        '''
+        Gets a bunch of statistics relevant for characterizing graph structure,
+        and stores them as attributes. These stats include degree distribution,
+        degree diespersion coefficient, average path length, diameter, radius,
+        global and local eddiciency, and clustering coefficient. 
+        '''
+
+
 
     def get_neighbors(self, v):
         '''
@@ -101,7 +111,6 @@ class Graph:
             (another positive integer). 
         '''
         return np.ravel(np.unique(self.get_conflicting_edges(coloring)))
-
 
     def is_valid_coloring(self, coloring):
         '''

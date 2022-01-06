@@ -30,7 +30,7 @@ def apply_move(s, move):
     s_prime[c].append(v)
     return s_prime
 
-class TabuCol():
+class Control():
     def __init__(self, G, k):
         self.G = G
         self.k = k
@@ -44,7 +44,7 @@ class TabuCol():
             idx = random.randint(0, self.k - 1)
             s0[idx] += [v]
         return s0
-    
+     
     def f(self, s):
         '''
         The objective function f of the Tabu-Col algorithm. It is defined as the
@@ -58,23 +58,6 @@ class TabuCol():
         coloring = state_to_coloring(s)
         return len(self.G.get_conflicting_vertices(coloring))
     
-    def update_A(self, s, s_prime):
-        '''
-        Update the value of the aspiration funtion for a given s and s_prime
-        (i.e. a state and its neighbor). Note that this function assumes that
-        the requirements for updating have been met, and throws an assertion
-        error if otherwise. 
-
-        Params
-        ------
-        s : list
-            A list of lists representing the current state of the system. 
-        s_prime : list
-            A list of lists representing a neighboring state of s. 
-        '''
-        z = self.f(s)
-        self.A[z] = self.f(s_prime) - 1
-
     def __get_possible_moves(self, s):
         '''
         Generate a list of all moves from the current state, i.e. all moves
@@ -108,28 +91,13 @@ class TabuCol():
         z = self.f(s)
  
         possible_moves = self.__get_possible_moves(s)
-        random.shuffle(possible_moves)
-        
-        moves = []
-        for move in possible_moves:
-            if len(moves) == self.rep:
-                break
-            s_prime = apply_move(s, move)
-            if move not in self.T:
-                moves.append(move)
-                # Every time a state s_prime is generated which meets this
-                # condition, update the value of the aspiration function. 
-            elif self.f(s_prime) <= self.A.get(z, z - 1):
-                self.update_A(s, s_prime)
-                moves.append(move)
-        return moves
+        # Sometimes, possible_moves is smaller than rep. This accounts for that
+        # case. 
+        return random.sample(possible_moves, min(len(possible_moves), self.rep))
    
-    def run(self, 
-            maxiters=1000,
-            T_size=10,
-            rep=10):
+    def run(self, maxiters=1000, rep=10):
         '''
-        Run the TabuCol algorithm on self.G for self.k colors. Returns -1 if the
+        Run the Control algorithm on self.G for self.k colors. Returns -1 if the
         algorithm gets stuck (no new moves can be generated), -2 if the maximum
         number of iterations is reached, and the number of iterations if the
         algorithm is successful. 
@@ -148,35 +116,24 @@ class TabuCol():
         # Initialize all local variables and relevant attributes. 
         self.rep = rep
         s = self.__init_s()
-        self.A = {}
-        self.T = []
-        self.T = random.sample(flatten([(v, c) for v in self.G.V for c in range(self.k)]), T_size)
 
         iters = 0
         while self.f(s) > 0 and iters < maxiters:
-            print(f'{iters} TabuCol iterations completed.', end='\r')
+            print(f'{iters} Control iterations completed.', end='\r')
             # Get a list of self.rep possible moves. 
             moves = self.__get_moves(s)
-            if len(moves) == 0:
-                # If no moves could be generated, the algorithm is stuck. 
-                print('FAILURE: TabuCol was unable to generate any new moves.')
-                return -1    
- 
+
             g = lambda move : self.f(apply_move(s, move)) 
             move = min(moves, key=g)
             s = apply_move(s, move)
- 
-            # Update the Tabu list by adding the most recent move, and removing
-            # the last move. 
-            self.T = [move] + self.T[:-1]
-            
             iters += 1
         
         if iters >= maxiters:
-            print(f'FAILURE: TabuCol was unable to find a solution within {maxiters} iterations.')
+            print(f'FAILURE: Control was unable to find a solution within {maxiters} iterations.')
             return -2
         else:
-            print(f'SUCCESS: TabuCol found a solution in {iters} iterations.')
+            print(f'SUCCESS: Control found a solution in {iters} iterations.')
             return iters
              
+
 
